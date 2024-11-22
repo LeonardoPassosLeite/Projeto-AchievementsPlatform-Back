@@ -1,0 +1,6 @@
+@AchievementsPlatform_HostAddress = http://localhost:5220
+
+GET {{AchievementsPlatform_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
