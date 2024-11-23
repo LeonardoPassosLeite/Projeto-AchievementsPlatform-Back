@@ -18,8 +18,10 @@ namespace AchievementsPlatform.Services
 
         public string GetSteamLoginUrl()
         {
-            var redirectUrl = GetConfigurationValue("Steam:CallbackUrl");
-            var realmUrl = GetConfigurationValue("Steam:RealmUrl");
+            var redirectUrl = _configuration["Steam:CallbackUrl"]
+                ?? throw new InvalidOperationException("CallbackUrl não configurada.");
+            var realmUrl = _configuration["Steam:RealmUrl"]
+                ?? throw new InvalidOperationException("RealmUrl não configurada.");
 
             var queryString = new QueryStringBuilder()
                 .Add("openid.ns", OpenIdNamespace)
