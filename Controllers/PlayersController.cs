@@ -15,7 +15,7 @@ public class PlayersController : ControllerBase
     [HttpGet]
     public IActionResult GetPlayers()
     {
-        var players = _context.Players.Include(p => p.Achievements).ToList();
+        var players = _context.Players.Include(p => p.SteamAchievements).ToList();
         return Ok(players);
     }
 

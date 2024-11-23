@@ -1,7 +1,10 @@
-public class Player
+public class Player : Base
 {
-    public int Id { get; set; }
-    public string Name { get; set; }
-    public string Email { get; set; }
-    public List<Achievement> Achievements { get; set; }
+    public string SteamId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public int TotalGames { get; set; }
+    public int TotalHoursPlayed { get; set; }
+    public List<SteamAchievement> SteamAchievements { get; set; }
 }
+
+

@@ -1,7 +1,9 @@
-public class Game
+public class Game : Base
 {
-    public int Id { get; set; }
-    public string Title { get; set; }
-    public string Genre { get; set; }
-    public List<Achievement> Achievements { get; set; }
+    public int AppId { get; set; }
+    public int PlaytimeForever { get; set; }
+    public string IconUrl { get; set; } = string.Empty;
+    public string SteamUserId { get; set; } = string.Empty;
+    public int? UserAchievements { get; set; }
+    public int? TotalAchievements { get; set; }
 }

@@ -1,10 +1,14 @@
 public class Achievement
 {
-    public int Id { get; set; }
-    public string Title { get; set; }
+    public string ApiName { get; set; }
+    public string Name { get; set; }
     public string Description { get; set; }
-    public int PlayerId { get; set; }
-    public Player Player { get; set; }
-    public int GameId { get; set; }
-    public Game Game { get; set; }
+    public bool Achieved { get; set; }
+}
+
+public class GameWithAchievements
+{
+    public string GameName { get; set; }
+    public int AppId { get; set; }
+    public List<Achievement> Achievements { get; set; }
 }

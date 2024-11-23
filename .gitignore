@@ -13,6 +13,7 @@ obj/
 .vscode/
 .vs/
 launchSettings.json
+appsettings.Development
 
 # Arquivos de sistema operacional
 .DS_Store

@@ -1,3 +1,5 @@
+using AchievementsPlatform.Services;
+using AchievementsPlatform.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -5,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -16,17 +19,18 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var postgresConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var postgresConnectionString = builder.Configuration.GetConnectionString("PostgresConnection")
+    ?? throw new InvalidOperationException("A string de conexão com o banco de dados não foi configurada.");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnectionString));
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:4200") 
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
@@ -35,8 +39,8 @@ builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.WriteIndented = false; 
 });
 
-
-builder.Services.AddControllers();
+builder.Services.AddHttpClient<SteamService>();
+builder.Services.AddScoped<ISteamAuthService, SteamAuthService>(); 
 
 var app = builder.Build();
 
@@ -46,10 +50,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(options =>
     {
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "Achievements Platform API v1");
+        options.DisplayRequestDuration(); 
     });
+    app.UseCors("AllowAll"); 
 }
 
-app.UseHttpsRedirection();
-app.UseCors("AllowFrontend");
+
+else
+{
+    app.UseHttpsRedirection();
+    app.UseCors("AllowAll");  
+}
+
 app.MapControllers();
+
 app.Run();
