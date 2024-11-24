@@ -1,39 +1,16 @@
 using System.Text.Json;
+using AchievementsPlatform.Services.Interfaces;
 
-public class SteamService
+public class SteamService : ISteamService
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
 
     public SteamService(HttpClient httpClient, IConfiguration configuration)
     {
-        _httpClient = httpClient;
-        _apiKey = configuration["SecretKeys:steamApiKey"];
-    }
-
-    public async Task<Player> GetSteamUserDetails(string steamId)
-    {
-        // Use _apiKey já configurada no construtor
-        var apiKey = _apiKey;
-
-        // Obtenha informações do perfil do jogador
-        var profileUrl = $"http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key={apiKey}&steamids={steamId}";
-        var profileResponse = await _httpClient.GetStringAsync(profileUrl);
-        var profileData = JsonSerializer.Deserialize<SteamProfileResponse>(profileResponse);
-
-        // Obtenha os jogos do jogador
-        var gamesUrl = $"http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key={apiKey}&steamid={steamId}";
-        var gamesResponse = await _httpClient.GetStringAsync(gamesUrl);
-        var gamesData = JsonSerializer.Deserialize<SteamGamesResponse>(gamesResponse);
-
-        // Combine os dados e retorne
-        return new Player
-        {
-            SteamId = steamId,
-            Name = profileData?.Response?.Players?.FirstOrDefault()?.PersonaName,
-            TotalGames = gamesData?.Response?.GameCount ?? 0,
-            TotalHoursPlayed = gamesData?.Response?.Games?.Sum(g => g.PlaytimeForever) ?? 0
-        };
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _apiKey = configuration["SecretKeys:steamApiKey"]
+                  ?? throw new InvalidOperationException("A chave da API da Steam não está configurada.");
     }
 
     public async Task<List<GameWithAchievements>> GetUserAchievementsByGame(string steamId)
@@ -42,57 +19,59 @@ public class SteamService
         var gamesResponse = await _httpClient.GetAsync(ownedGamesUrl);
 
         if (!gamesResponse.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Erro ao buscar os jogos do usuário.");
             throw new Exception("Erro ao buscar os jogos do usuário.");
+        }
 
         var gamesJson = await gamesResponse.Content.ReadAsStringAsync();
+        Console.WriteLine($"Resposta completa da Steam API (Owned Games): {gamesJson}");
+
         var gamesData = JsonDocument.Parse(gamesJson);
 
         if (!gamesData.RootElement.TryGetProperty("response", out var responseElement) ||
             !responseElement.TryGetProperty("games", out var games))
         {
+            Console.WriteLine("Erro: 'response' ou 'games' não encontrado na resposta.");
             throw new Exception("Nenhum jogo encontrado para o usuário.");
         }
 
-        var gameList = games.EnumerateArray().Select(g => new
+        var gameList = games.EnumerateArray().Select(g => new GameWithAchievements
         {
             AppId = g.GetProperty("appid").GetInt32(),
-            Name = g.GetProperty("name").GetString()
+            GameName = g.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : "Nome não disponível",
+            PlaytimeForever = g.TryGetProperty("playtime_forever", out var playtimeProp) ? playtimeProp.GetInt32() : 0,
+            Achievements = new List<Achievement>()
         }).ToList();
 
-        var result = new List<GameWithAchievements>();
         foreach (var game in gameList)
         {
             var achievementsUrl = $"http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/?key={_apiKey}&steamid={steamId}&appid={game.AppId}";
             var achievementsResponse = await _httpClient.GetAsync(achievementsUrl);
 
-            if (!achievementsResponse.IsSuccessStatusCode)
-                continue; // Ignorar jogos sem conquistas ou com erro
-
-            var achievementsJson = await achievementsResponse.Content.ReadAsStringAsync();
-            var achievementsData = JsonDocument.Parse(achievementsJson);
-
-            if (!achievementsData.RootElement.TryGetProperty("playerstats", out var playerStats) ||
-                !playerStats.TryGetProperty("achievements", out var achievements))
+            if (achievementsResponse.IsSuccessStatusCode)
             {
-                continue; // Ignorar jogos sem conquistas
+                var achievementsJson = await achievementsResponse.Content.ReadAsStringAsync();
+                var achievementsData = JsonDocument.Parse(achievementsJson);
+
+                if (achievementsData.RootElement.TryGetProperty("playerstats", out var playerStats) &&
+                    playerStats.TryGetProperty("achievements", out var achievements))
+                {
+                    game.Achievements = achievements.EnumerateArray().Select(a => new Achievement
+                    {
+                        ApiName = a.TryGetProperty("apiname", out var apiNameProp) ? apiNameProp.GetString() : "Sem nome",
+                        Name = a.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : "Sem nome",
+                        Description = a.TryGetProperty("description", out var descriptionProp) ? descriptionProp.GetString() : "Sem descrição",
+                        Achieved = a.TryGetProperty("achieved", out var achievedProp) ? achievedProp.GetInt32() == 1 : false
+                    }).ToList();
+                }
+                else
+                {
+                    Console.WriteLine($"Nenhuma conquista encontrada para o jogo {game.GameName} (AppId: {game.AppId}).");
+                }
             }
-
-            var achievementList = achievements.EnumerateArray().Select(a => new Achievement
-            {
-                ApiName = a.GetProperty("apiname").GetString(),
-                Name = a.GetProperty("name").GetString(),
-                Description = a.GetProperty("description").GetString(),
-                Achieved = a.GetProperty("achieved").GetInt32() == 1
-            }).ToList();
-
-            result.Add(new GameWithAchievements
-            {
-                GameName = game.Name,
-                AppId = game.AppId,
-                Achievements = achievementList
-            });
         }
 
-        return result;
+        return gameList;
     }
 }

@@ -1,4 +1,5 @@
 using AchievementsPlatform.Models;
+using AchievementsPlatform.Services;
 using AchievementsPlatform.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,11 +9,21 @@ public class LoginController : ControllerBase
 {
     private readonly ILogger<LoginController> _logger;
     private readonly ISteamAuthService _steamAuthService;
+    private readonly ISteamService _steamService;
+    private readonly IAccountGameService _accountGameService;
+    private readonly AppDbContext _dbContext;
 
-    public LoginController(ILogger<LoginController> logger, ISteamAuthService steamAuthService)
+    public LoginController(ILogger<LoginController> logger,
+                           ISteamAuthService steamAuthService,
+                           ISteamService steamService,
+                           IAccountGameService accountGameService,
+                           AppDbContext dbContext)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _steamAuthService = steamAuthService ?? throw new ArgumentNullException(nameof(steamAuthService));
+        _steamService = steamService ?? throw new ArgumentNullException(nameof(steamService));
+        _accountGameService = accountGameService ?? throw new ArgumentNullException(nameof(accountGameService));
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
     [HttpGet("steam")]
@@ -36,6 +47,9 @@ public class LoginController : ControllerBase
         try
         {
             var result = _steamAuthService.HandleCallback(HttpContext.Request.Query);
+
+            _logger.LogInformation($"Usuário autenticado com sucesso. SteamId: {result.SteamId}");
+
             return Redirect(result.RedirectUrl);
         }
         catch (SteamAuthException ex)
@@ -47,6 +61,24 @@ public class LoginController : ControllerBase
         {
             _logger.LogError(ex, "Erro inesperado durante o callback.");
             return Redirect($"http://localhost:4200/auth/callback?message=Erro interno durante a autenticação.");
+        }
+    }
+
+    [HttpPost("store-accountgame-user-data")]
+    public async Task<IActionResult> StoreUserData([FromBody] StoreUserDTO storeUserDTO)
+    {
+        if (string.IsNullOrWhiteSpace(storeUserDTO.SteamId))
+            return BadRequest(new { message = "SteamId não fornecido." });
+
+        try
+        {
+            await _accountGameService.StoreUserGamesAsync(storeUserDTO.SteamId);
+            return Ok(new { message = "Dados armazenados com sucesso." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao armazenar dados do usuário.");
+            return StatusCode(500, new { message = "Erro interno.", error = ex.Message });
         }
     }
 }

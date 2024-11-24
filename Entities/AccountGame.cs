@@ -1,4 +1,4 @@
-public class Game : Base
+public class AccountGame : Base
 {
     public int AppId { get; set; }
     public int PlaytimeForever { get; set; }

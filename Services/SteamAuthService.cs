@@ -16,12 +16,18 @@ namespace AchievementsPlatform.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        private string GetEnvironmentVariable(string key)
+        {
+            return Environment.GetEnvironmentVariable(key)
+                   ?? throw new InvalidOperationException($"A variável de ambiente '{key}' não está configurada.");
+        }
+
         public string GetSteamLoginUrl()
         {
             var redirectUrl = _configuration["Steam:CallbackUrl"]
-                ?? throw new InvalidOperationException("CallbackUrl não configurada.");
+                ?? throw new InvalidOperationException("CallbackUrl não configurada no appsettings.");
             var realmUrl = _configuration["Steam:RealmUrl"]
-                ?? throw new InvalidOperationException("RealmUrl não configurada.");
+                ?? throw new InvalidOperationException("RealmUrl não configurada no appsettings.");
 
             var queryString = new QueryStringBuilder()
                 .Add("openid.ns", OpenIdNamespace)
@@ -32,8 +38,7 @@ namespace AchievementsPlatform.Services
                 .Add("openid.claimed_id", $"{OpenIdNamespace}/identifier_select")
                 .Build();
 
-            var steamLoginUrl = $"https://steamcommunity.com/openid/login?{queryString}";
-            return steamLoginUrl;
+            return $"https://steamcommunity.com/openid/login?{queryString}";
         }
 
         public SteamAuthResult HandleCallback(IQueryCollection queryString)
@@ -64,9 +69,8 @@ namespace AchievementsPlatform.Services
                 .Add("message", "Login realizado com sucesso!")
                 .Build();
 
-            return new SteamAuthResult($"{frontEndCallbackUrl}?{redirectUrl}");
+            return new SteamAuthResult($"{frontEndCallbackUrl}?{redirectUrl}", steamId);
         }
-
         private string ExtractSteamIdFromClaimedId(string claimedId)
         {
             return claimedId.StartsWith(SteamIdPrefix) ? claimedId.Substring(SteamIdPrefix.Length) : null;
