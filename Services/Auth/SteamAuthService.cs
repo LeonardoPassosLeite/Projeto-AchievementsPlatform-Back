@@ -1,4 +1,4 @@
-using AchievementsPlatform.Models;
+using AchievementsPlatform.Exceptions;
 using AchievementsPlatform.Services.Interfaces;
 
 namespace AchievementsPlatform.Services

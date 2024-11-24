@@ -21,7 +21,7 @@ namespace AchievementsPlatform.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Game", b =>
+            modelBuilder.Entity("AccountGame", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -55,7 +55,7 @@ namespace AchievementsPlatform.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Games");
+                    b.ToTable("AccountGames");
                 });
 
             modelBuilder.Entity("Player", b =>

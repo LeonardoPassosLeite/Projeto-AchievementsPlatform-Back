@@ -7,13 +7,13 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AchievementsPlatform.Migrations
 {
     /// <inheritdoc />
-    public partial class AddAchievementsToGames : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "Games",
+                name: "AccountGames",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
@@ -28,7 +28,7 @@ namespace AchievementsPlatform.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Games", x => x.Id);
+                    table.PrimaryKey("PK_AccountGames", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -37,7 +37,10 @@ namespace AchievementsPlatform.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SteamId = table.Column<string>(type: "text", nullable: false),
                     Email = table.Column<string>(type: "text", nullable: false),
+                    TotalGames = table.Column<int>(type: "integer", nullable: false),
+                    TotalHoursPlayed = table.Column<int>(type: "integer", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>
@@ -80,7 +83,7 @@ namespace AchievementsPlatform.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Games");
+                name: "AccountGames");
 
             migrationBuilder.DropTable(
                 name: "SteamAchievements");

@@ -1,7 +1,8 @@
-using AchievementsPlatform.Models;
-using AchievementsPlatform.Services;
+using AchievementsPlatform.Exceptions;
 using AchievementsPlatform.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -9,21 +10,18 @@ public class LoginController : ControllerBase
 {
     private readonly ILogger<LoginController> _logger;
     private readonly ISteamAuthService _steamAuthService;
-    private readonly ISteamService _steamService;
     private readonly IAccountGameService _accountGameService;
-    private readonly AppDbContext _dbContext;
+    private readonly ITokenService _tokenService;
 
     public LoginController(ILogger<LoginController> logger,
                            ISteamAuthService steamAuthService,
-                           ISteamService steamService,
                            IAccountGameService accountGameService,
-                           AppDbContext dbContext)
+                           ITokenService tokenService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _steamAuthService = steamAuthService ?? throw new ArgumentNullException(nameof(steamAuthService));
-        _steamService = steamService ?? throw new ArgumentNullException(nameof(steamService));
         _accountGameService = accountGameService ?? throw new ArgumentNullException(nameof(accountGameService));
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
     }
 
     [HttpGet("steam")]
@@ -34,9 +32,8 @@ public class LoginController : ControllerBase
             var steamLoginUrl = _steamAuthService.GetSteamLoginUrl();
             return Redirect(steamLoginUrl);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogError(ex, "Erro ao construir a URL de login do Steam.");
             return StatusCode(500, "Erro interno ao redirecionar para o Steam.");
         }
     }
@@ -47,10 +44,16 @@ public class LoginController : ControllerBase
         try
         {
             var result = _steamAuthService.HandleCallback(HttpContext.Request.Query);
+            var token = _tokenService.GenerateToken(result.SteamId, result.Username);
 
-            _logger.LogInformation($"Usuário autenticado com sucesso. SteamId: {result.SteamId}");
+            Response.Cookies.Append("jwtToken", token, new CookieOptions
+            {
+                HttpOnly = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production",
+                Secure = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production",
+                SameSite = SameSiteMode.Strict
+            });
 
-            return Redirect(result.RedirectUrl);
+            return Redirect("http://localhost:4200/auth/callback");
         }
         catch (SteamAuthException ex)
         {
@@ -65,20 +68,30 @@ public class LoginController : ControllerBase
     }
 
     [HttpPost("store-accountgame-user-data")]
-    public async Task<IActionResult> StoreUserData([FromBody] StoreUserDTO storeUserDTO)
+    [Authorize]
+    public async Task<IActionResult> StoreAccountGameUserData()
     {
-        if (string.IsNullOrWhiteSpace(storeUserDTO.SteamId))
-            return BadRequest(new { message = "SteamId não fornecido." });
+        var steamId = User.Claims.FirstOrDefault(c => c.Type == "steamId")?.Value;
+
+        if (string.IsNullOrEmpty(steamId))
+            return BadRequest(new { error = "SteamId não encontrado no token." });
 
         try
         {
-            await _accountGameService.StoreUserGamesAsync(storeUserDTO.SteamId);
-            return Ok(new { message = "Dados armazenados com sucesso." });
+            await _accountGameService.StoreUserGamesAsync(steamId);
+            return Ok(new { message = "Jogos armazenados com sucesso." });
         }
-        catch (Exception ex)
+        catch (UserDataException ex)
         {
-            _logger.LogError(ex, "Erro ao armazenar dados do usuário.");
-            return StatusCode(500, new { message = "Erro interno.", error = ex.Message });
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (DbUpdateException)
+        {
+            return StatusCode(500, new { error = "Erro ao salvar dados no banco de dados." });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { error = "Erro interno ao processar a solicitação." });
         }
     }
 }

@@ -2,27 +2,26 @@ using AchievementsPlatform.Services;
 using AchievementsPlatform.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var postgresConnectionString = builder.Configuration.GetConnectionString("PostgresConnection")
     ?? throw new InvalidOperationException("A string de conexão com o banco de dados não foi configurada.");
 
-var steamCallbackUrl = builder.Configuration["Steam:CallbackUrl"]
-    ?? throw new InvalidOperationException("Steam CallbackUrl não configurada.");
-var steamRealmUrl = builder.Configuration["Steam:RealmUrl"]
-    ?? throw new InvalidOperationException("Steam RealmUrl não configurada.");
-var frontendCallbackUrl = builder.Configuration["FrontEnd:CallbackUrl"]
-    ?? throw new InvalidOperationException("Frontend CallbackUrl não configurada.");
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(postgresConnectionString));
+
+var frontendCallbackUrl = builder.Configuration["FrontEnd:CallbackUrl"]
+    ?? throw new InvalidOperationException("Frontend CallbackUrl não configurada.");
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins("http://localhost:4200", frontendCallbackUrl)
+              .AllowCredentials()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -34,6 +33,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 });
 
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
@@ -44,9 +44,28 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        options.RequireHttpsMetadata = false; // Mantenha como "true" em produção
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:SecretKey"]))
+        };
+    });
+
+builder.Services.AddAuthorization();
 builder.Services.AddHttpClient<ISteamService, SteamService>();
 builder.Services.AddScoped<ISteamAuthService, SteamAuthService>();
 builder.Services.AddScoped<IAccountGameService, AccountGameService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -69,5 +88,9 @@ else
     app.UseCors("AllowFrontend");
 }
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
+
 app.Run();

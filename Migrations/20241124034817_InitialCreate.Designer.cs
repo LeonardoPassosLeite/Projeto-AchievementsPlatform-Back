@@ -11,8 +11,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AchievementsPlatform.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241123010757_AddAchievementsToGames")]
-    partial class AddAchievementsToGames
+    [Migration("20241124034817_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,7 +24,7 @@ namespace AchievementsPlatform.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Game", b =>
+            modelBuilder.Entity("AccountGame", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -58,7 +58,7 @@ namespace AchievementsPlatform.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Games");
+                    b.ToTable("AccountGames");
                 });
 
             modelBuilder.Entity("Player", b =>
@@ -76,6 +76,16 @@ namespace AchievementsPlatform.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("SteamId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalGames")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalHoursPlayed")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
