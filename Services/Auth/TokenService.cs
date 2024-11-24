@@ -8,76 +8,60 @@ namespace AchievementsPlatform.Services
 {
     public class TokenService : ITokenService
     {
-        private readonly string _secretKey;
-        private readonly string _issuer;
-        private readonly string _audience;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<TokenService> _logger;
 
-        public TokenService(IConfiguration configuration)
+        public TokenService(IConfiguration configuration, ILogger<TokenService> logger)
         {
-            // Lê as configurações do JWT do appsettings.json
-            _secretKey = configuration["Jwt:SecretKey"]
-                ?? throw new ArgumentNullException("Chave secreta do JWT não configurada.");
-            _issuer = configuration["Jwt:Issuer"]
-                ?? throw new ArgumentNullException("Issuer do JWT não configurado.");
-            _audience = configuration["Jwt:Audience"]
-                ?? throw new ArgumentNullException("Audience do JWT não configurada.");
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _logger = logger;
         }
 
-        public string GenerateToken(string steamId, string username)
+        public string GenerateToken(string steamId, string username, TimeSpan expiration)
         {
+            if (string.IsNullOrEmpty(steamId))
+                throw new ArgumentException("SteamId é obrigatório.", nameof(steamId));
+
+            if (string.IsNullOrEmpty(username))
+                throw new ArgumentException("Username é obrigatório.", nameof(username));
+
+            var secretKey = _configuration["Jwt:SecretKey"]
+                ?? throw new InvalidOperationException("Jwt:SecretKey não configurado.");
+
             var claims = new[]
             {
-        new Claim(JwtRegisteredClaimNames.Sub, username ?? "Unknown"),
-        new Claim("steamId", steamId),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
-        new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString(), ClaimValueTypes.Integer64) // Data de criação do token
-    };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secretKey));
-            var signingCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddHours(1), 
-                SigningCredentials = signingCredentials,
-                Issuer = _issuer,
-                Audience = _audience
+                new Claim(JwtRegisteredClaimNames.Sub, username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim("steamId", steamId)
             };
 
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            return tokenHandler.WriteToken(token);
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.Add(expiration),
+                signingCredentials: creds
+            );
+
+            _logger.LogInformation($"Token gerado para o SteamId: {steamId}.");
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
 
-        public ClaimsPrincipal ValidateToken(string token)
+        public string GetTokenId(string token)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.UTF8.GetBytes(_secretKey);
+            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            return jwtToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value
+                ?? throw new InvalidOperationException("Token ID (JTI) não encontrado.");
+        }
 
-            var validationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = _issuer,
-                ValidAudience = _audience,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateLifetime = true, // Verifica se o token está expirado
-                ClockSkew = TimeSpan.Zero // Ignora qualquer diferença de relógio
-            };
-
-            try
-            {
-                var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
-                return principal;
-            }
-            catch (Exception ex)
-            {
-                throw new SecurityTokenException("Token inválido ou expirado.", ex);
-            }
+        public TimeSpan GetTokenExpiration(string token)
+        {
+            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            return jwtToken.ValidTo - DateTime.UtcNow;
         }
     }
 }
