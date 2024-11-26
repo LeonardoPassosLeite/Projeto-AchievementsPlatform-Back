@@ -1,9 +1,9 @@
 using AchievementsPlatform.Exceptions;
+using AchievementsPlatform.Helpers;
 using AchievementsPlatform.Services.Auth.Interfaces;
 using AchievementsPlatform.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 [ApiController]
@@ -12,7 +12,6 @@ public class LoginController : ControllerBase
 {
     private readonly ILogger<LoginController> _logger;
     private readonly ISteamAuthService _steamAuthService;
-    private readonly IAccountGameService _accountGameService;
     private readonly ICookieService _coockieService;
     private readonly IAuthenticationService _authenticationService;
     private readonly ITokenRevocationService _tokenRevocationService;
@@ -26,22 +25,9 @@ public class LoginController : ControllerBase
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _steamAuthService = steamAuthService ?? throw new ArgumentNullException(nameof(steamAuthService));
-        _accountGameService = accountGameService ?? throw new ArgumentNullException(nameof(accountGameService));
         _coockieService = coockieService ?? throw new ArgumentNullException(nameof(coockieService));
         _authenticationService = authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
         _tokenRevocationService = tokenRevocationService ?? throw new ArgumentNullException(nameof(tokenRevocationService));
-    }
-
-    [Authorize]
-    [HttpGet("protected-resource")]
-    public IActionResult GetProtectedResource()
-    {
-        var steamId = User.Claims.FirstOrDefault(c => c.Type == "steamId")?.Value;
-
-        if (string.IsNullOrEmpty(steamId))
-            return Unauthorized("Token inválido ou SteamId ausente.");
-
-        return Ok(new { message = "Recurso protegido acessado com sucesso!" });
     }
 
     [HttpGet("steam")]
@@ -106,43 +92,6 @@ public class LoginController : ControllerBase
                 title: "Erro Interno",
                 statusCode: 500
             );
-        }
-    }
-
-    [HttpPost("store-accountgame-user-data")]
-    [Authorize]
-    public async Task<IActionResult> StoreAccountGameUserData()
-    {
-        _logger.LogInformation($"Token recebido no header Authorization: {Request.Headers["Authorization"]}");
-
-        var steamId = User.Claims.FirstOrDefault(c => c.Type == "steamId")?.Value;
-        _logger.LogInformation($"SteamId extraído do token: {steamId}");
-
-        if (string.IsNullOrEmpty(steamId))
-        {
-            _logger.LogWarning("SteamId não encontrado no token.");
-            return BadRequest(new { error = "SteamId não encontrado no token." });
-        }
-
-        try
-        {
-            await _accountGameService.StoreUserGamesAsync(steamId);
-            return Ok(new { message = "Jogos armazenados com sucesso." });
-        }
-        catch (UserDataException ex)
-        {
-            _logger.LogError(ex, "Erro ao armazenar dados do usuário.");
-            return BadRequest(new { error = ex.Message });
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(ex, "Erro ao salvar dados no banco de dados.");
-            return StatusCode(500, new { error = "Erro ao salvar dados no banco de dados." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro interno ao processar a solicitação.");
-            return StatusCode(500, new { error = "Erro interno ao processar a solicitação." });
         }
     }
 

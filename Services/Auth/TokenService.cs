@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using AchievementsPlatform.Helpers; 
 using AchievementsPlatform.Services.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 
@@ -50,12 +51,16 @@ namespace AchievementsPlatform.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-
         public string GetTokenId(string token)
         {
             var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
-            return jwtToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value
-                ?? throw new InvalidOperationException("Token ID (JTI) não encontrado.");
+            return ClaimHelper.GetClaimValue(jwtToken.Claims, JwtRegisteredClaimNames.Jti);
+        }
+
+        public string GetSteamId(string token)
+        {
+            var jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            return ClaimHelper.GetClaimValue(jwtToken.Claims, "steamId");
         }
 
         public TimeSpan GetTokenExpiration(string token)

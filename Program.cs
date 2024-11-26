@@ -7,8 +7,15 @@ using System.Text;
 using AchievementsPlatform.Middleware;
 using AchievementsPlatform.Services.Auth.Interfaces;
 using AchievementsPlatform.Services.Auth;
+using AchievementsPlatform.Repositories.Interfaces;
+using AchievementsPlatform.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
+// Configuração do AutoMapper
+builder.Services.AddAutoMapper(config =>
+{
+    config.AddProfile<MappingProfile>();
+});
 
 // Configuração do banco de dados
 var postgresConnectionString = builder.Configuration.GetConnectionString("PostgresConnection")
@@ -32,6 +39,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+
 // Configuração de Cache (para revogação de tokens)
 builder.Services.AddDistributedMemoryCache(); // Cache em memória para desenvolvimento
 // Para Redis (descomente se necessário):
@@ -42,6 +50,7 @@ builder.Services.AddDistributedMemoryCache(); // Cache em memória para desenvol
 // });
 
 // Configuração de Autenticação e Autorização JWT
+
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
@@ -84,6 +93,10 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<ICookieService, CoockieService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<ITokenRevocationService, TokenRevocationService>();
+
+//Configuração de Repositories
+builder.Services.AddScoped<IAccountGameRepository, AccountGameRepository>();
+
 
 // Configuração de Controllers
 builder.Services.AddControllers().AddJsonOptions(options =>

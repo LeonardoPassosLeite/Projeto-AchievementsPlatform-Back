@@ -6,4 +6,5 @@ public class AccountGame : Base
     public string SteamUserId { get; set; } = string.Empty;
     public int? UserAchievements { get; set; }
     public int? TotalAchievements { get; set; }
+    
 }

@@ -1,22 +1,29 @@
+using AchievementsPlatform.Dtos;
+using AchievementsPlatform.Repositories.Interfaces;
 using AchievementsPlatform.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
+using AutoMapper;
 
 namespace AchievementsPlatform.Services
 {
     public class AccountGameService : IAccountGameService
     {
-        private readonly AppDbContext _dbContext;
+        private readonly IAccountGameRepository _accountGameRepository;
         private readonly ISteamService _steamService;
         private readonly ILogger<AccountGameService> _logger;
-
-        public AccountGameService(AppDbContext dbContext, ISteamService steamService, ILogger<AccountGameService> logger)
+        private readonly IMapper _mapper;  
+        public AccountGameService(
+            IAccountGameRepository accountGameRepository,
+            ISteamService steamService,
+            ILogger<AccountGameService> logger,
+            IMapper mapper) 
         {
-            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+            _accountGameRepository = accountGameRepository ?? throw new ArgumentNullException(nameof(accountGameRepository));
             _steamService = steamService ?? throw new ArgumentNullException(nameof(steamService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         }
 
-        public async Task StoreUserGamesAsync(string steamId)
+        public async Task StoreUserGamesAsync(string steamId, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(steamId))
             {
@@ -24,54 +31,38 @@ namespace AchievementsPlatform.Services
                 throw new ArgumentException("SteamId inválido.", nameof(steamId));
             }
 
-            _logger.LogInformation($"Iniciando o processo de armazenamento de jogos para SteamId: {steamId}");
+            _logger.LogInformation($"Iniciando o armazenamento de jogos para o SteamId: {steamId}");
 
-            try
+            var ownedGames = await _steamService.GetOwnedGamesAsync(steamId, cancellationToken);
+
+            if (!ownedGames.Any())
             {
-                // Obtém os jogos do usuário via SteamService
-                var games = await _steamService.GetUserAchievementsByGame(steamId);
-                if (games == null || !games.Any())
-                {
-                    _logger.LogWarning($"Nenhum jogo encontrado para o SteamId: {steamId}");
-                    return;
-                }
-
-                foreach (var game in games)
-                {
-                    var existingGame = await _dbContext.AccountGames
-                        .FirstOrDefaultAsync(g => g.AppId == game.AppId && g.SteamUserId == steamId);
-
-                    if (existingGame == null)
-                    {
-                        var newGame = new AccountGame
-                        {
-                            AppId = game.AppId,
-                            Name = game.GameName,
-                            PlaytimeForever = game.PlaytimeForever,
-                            IconUrl = $"https://cdn.steam.com/icons/{game.AppId}",
-                            SteamUserId = steamId,
-                            UserAchievements = game.Achievements.Count(a => a.Achieved),
-                            TotalAchievements = game.Achievements.Count
-                        };
-
-                        _logger.LogInformation($"Adicionando jogo ao banco: {game.GameName} (AppId: {game.AppId})");
-                        await _dbContext.AccountGames.AddAsync(newGame);
-                    }
-                    else
-                    {
-                        _logger.LogInformation($"Jogo já existe no banco: {game.GameName} (AppId: {game.AppId})");
-                    }
-                }
-
-                _logger.LogInformation("Salvando alterações no banco de dados...");
-                await _dbContext.SaveChangesAsync();
-                _logger.LogInformation("Jogos armazenados com sucesso.");
+                _logger.LogWarning($"Nenhum jogo encontrado para o SteamId: {steamId}");
+                return;
             }
-            catch (Exception ex)
+
+            foreach (var game in ownedGames)
             {
-                _logger.LogError(ex, $"Erro ao armazenar jogos para o SteamId: {steamId}");
-                throw;
+                var gameDto = _mapper.Map<AccountGameDto>(game);
+                await _accountGameRepository.AddGameIfNotExists(gameDto, steamId);
             }
+
+            _logger.LogInformation($"Jogos armazenados com sucesso para o SteamId: {steamId}");
+        }
+
+        public async Task<IEnumerable<AccountGameDto>> GetStoredGamesAsync(string steamId, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(steamId))
+            {
+                _logger.LogWarning("SteamId está vazio ou nulo.");
+                throw new ArgumentException("SteamId inválido.", nameof(steamId));
+            }
+
+            _logger.LogInformation($"Obtendo jogos armazenados para SteamId: {steamId}");
+
+            var storedGames = await _accountGameRepository.GetGamesBySteamIdAsync(steamId);
+
+            return _mapper.Map<IEnumerable<AccountGameDto>>(storedGames);
         }
     }
 }
