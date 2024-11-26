@@ -92,6 +92,8 @@ builder.Services.AddScoped<IAccountGameService, AccountGameService>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<ICookieService, CoockieService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IGameFeedbackRepository, GameFeedbackRepository>();
+builder.Services.AddScoped<IGameFeedbackService, GameFeedbackService>();
 builder.Services.AddSingleton<ITokenRevocationService, TokenRevocationService>();
 
 //Configuração de Repositories
