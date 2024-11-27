@@ -1,8 +1,6 @@
 using AchievementsPlatform.Exceptions;
-using AchievementsPlatform.Helpers;
 using AchievementsPlatform.Services.Auth.Interfaces;
 using AchievementsPlatform.Services.Interfaces;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
